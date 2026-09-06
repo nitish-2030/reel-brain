@@ -6,7 +6,7 @@ Reel Brain solves a simple problem:
 
 You find useful Instagram Reels about AI tools, automation, tutorials, ideas, or solutions — save them for later — and then forget about them.
 
-Reel Brain turns those saved Reels into **organized, summarized, searchable knowledge**.
+Reel Brain turns those saved Reels (and now screenshots too) into **organized, summarized, searchable knowledge**.
 
 ---
 
@@ -14,15 +14,18 @@ Reel Brain turns those saved Reels into **organized, summarized, searchable know
 
 The basic workflow is:
 
-**Instagram Reel → Telegram → n8n → Gemini → Notion**
+**Instagram Reel / Screenshot → Telegram → n8n → Gemini → Notion**
 
 ### 1. Capture
 
-Forward an Instagram Reel or useful content to a private Telegram channel.
+Forward an Instagram Reel, or send a screenshot/photo, to a private Telegram channel.
 
 ### 2. Understand
 
-Local n8n picks up the content and sends the available video, audio, or caption to Google Gemini.
+Local n8n picks up the content:
+- **Reels** → downloaded locally with `yt-dlp`, then uploaded to Gemini's File API for real video analysis
+- **Photos/Screenshots** → sent directly to Gemini as inline base64 image data
+- **Failed/private reels** → automatically fall back to caption-only analysis so nothing errors out silently
 
 ### 3. Summarize & Tag
 
@@ -34,7 +37,7 @@ Gemini generates:
 
 ### 4. Store
 
-n8n saves the result as a new entry in a Notion database.
+n8n saves the result as a new entry in a Notion database, tagged by `Type` (Reel / Image).
 
 ### 5. Recall
 
@@ -45,36 +48,42 @@ Later, search or filter Notion by keyword, tag, or date to find useful content w
 ## 🏗️ Architecture
 
 ```text
-┌─────────────────┐
-│  Instagram Reel │
-└────────┬────────┘
-         │ Forward
-         ▼
-┌─────────────────┐
-│ Telegram Inbox  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Local n8n     │
-│   Automation    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Google Gemini   │
-│ AI Processing   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│      Notion     │
-│ Knowledge Base  │
-└────────┬────────┘
-         │
-         ▼
-   Search & Recall
+┌─────────────────────────┐
+│ Instagram Reel / Photo  │
+└────────────┬────────────┘
+             │ Forward
+             ▼
+┌─────────────────────────┐
+│     Telegram Inbox      │
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐
+│       Local n8n         │
+│   (Reel vs Photo IF)    │
+└──────┬──────────┬───────┘
+       │          │
+   Reel branch  Photo branch
+   (yt-dlp +     (inline
+   File API)     base64)
+       │          │
+       ▼          ▼
+┌─────────────────────────┐
+│      Google Gemini      │
+│    AI Analysis          │
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐
+│         Notion          │
+│    Knowledge Base       │
+└────────────┬────────────┘
+             │
+             ▼
+       Search & Recall
 ```
+
+Public access to local n8n is provided via a Cloudflare Tunnel, started automatically alongside n8n through a single startup script.
 
 ---
 
@@ -82,13 +91,15 @@ Later, search or filter Notion by keyword, tag, or date to find useful content w
 
 | Technology            | Purpose                                                   |
 | --------------------- | --------------------------------------------------------- |
-| **Telegram**          | Personal inbox for forwarded Reels                        |
+| **Telegram**          | Personal inbox for forwarded Reels and photos              |
 | **n8n**               | Local automation engine                                   |
-| **Google Gemini API** | Video/audio/text understanding, summarization and tagging |
+| **Google Gemini API** | Video/image/text understanding, summarization and tagging |
 | **Notion**            | Searchable storage and knowledge base                     |
+| **Cloudflare Tunnel** | Exposes local n8n to Telegram's webhook over HTTPS         |
+| **yt-dlp**            | Downloads actual Reel video content for analysis           |
 | **Node.js / npm**     | Runs the local n8n setup                                  |
 
-All services are intended to be used on their free tiers for this project.
+All services run on free tiers.
 
 **Target cost: $0**
 
@@ -96,7 +107,7 @@ All services are intended to be used on their free tiers for this project.
 
 ## 📋 Notion Database
 
-Each saved piece of content is stored with information such as:
+Each saved piece of content is stored with:
 
 * **Title**
 * **Summary**
@@ -105,7 +116,7 @@ Each saved piece of content is stored with information such as:
 * **Date Saved**
 * **Type** — Reel / Image / Other
 
-This turns a collection of random saved Reels into structured information that can be searched later.
+This turns a collection of random saved Reels and screenshots into structured information that can be searched later.
 
 ---
 
@@ -141,49 +152,56 @@ reel-brain/
 * [x] GitHub remote connected
 * [x] Initial repository structure created
 * [x] `.gitignore` configured
-* [ ] Update n8n
-* [ ] Telegram Bot + private channel
-* [ ] Notion database
-* [ ] Gemini API setup
-* [ ] Connect Telegram + Gemini + Notion in n8n
-* [ ] Build complete automation workflow
-* [ ] Daily usage setup
+* [x] n8n updated and running locally
+* [x] Telegram Bot + private channel
+* [x] Notion database
+* [x] Gemini API setup
+* [x] Connect Telegram + Gemini + Notion in n8n
+* [x] Build complete automation workflow (Reel branch)
+* [x] Fallback handling for failed/private reels (caption-only path)
+* [x] Photo/screenshot analysis branch (inline base64 → Gemini)
+* [x] Automated startup script (tunnel + webhook + n8n)
+* [ ] Permanent Cloudflare Named Tunnel (pending free/cheap domain)
+* [ ] Cleanup step for downloaded video files
 * [ ] Verify & Expand feature *(optional)*
 
-> **Current phase:** Project repository setup completed. Automation setup is next.
+> **Current phase:** Core pipeline is fully working end-to-end for both Reels and photos, including graceful fallback for undownloadable reels, with a one-click daily startup script. Remaining work is reliability polish (disk cleanup, permanent tunnel) and the optional Verify & Expand feature.
 
 ---
 
 ## 🗺️ Roadmap
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✅
 
 * Set up and verify n8n
 * Create Telegram bot and private channel
 * Create Notion database
 * Configure Gemini API
 
-### Phase 2 — Integration
+### Phase 2 — Integration ✅
 
 * Connect Telegram to n8n
 * Connect Gemini to n8n
 * Connect Notion to n8n
 * Test each integration
 
-### Phase 3 — Automation
+### Phase 3 — Automation ✅
 
-* Detect forwarded content
-* Process available Reel content
+* Detect forwarded content (Reel vs Photo, via IF node)
+* Download and process Reel video content via `yt-dlp` + Gemini File API
+* Process photos/screenshots via inline base64 to Gemini
 * Generate summary and tags
 * Save structured information to Notion
-* Handle cases where only caption/link information is available
+* Handle cases where video download fails (caption-only fallback)
 
-### Phase 4 — Daily Usage
+### Phase 4 — Daily Usage 🔄 (in progress)
 
-* Make Reel capture fast and effortless
-* Keep n8n running reliably
-* Create useful Notion views
-* Develop a regular review habit
+* ✅ One-click startup script (Cloudflare Tunnel + webhook + n8n)
+* [ ] Move `NODES_EXCLUDE` / `N8N_RESTRICT_FILE_ACCESS_TO` fully into permanent system env vars
+* [ ] Add cleanup step to delete downloaded `.mp4` files after successful Notion save
+* [ ] Upgrade to a Cloudflare Named Tunnel once a domain is available (permanent webhook URL)
+* [ ] Create useful Notion views (Unreviewed / Reviewed / Favorites)
+* [ ] Develop a regular review habit
 
 ### Phase 5 — Optional Expansion
 
@@ -220,7 +238,7 @@ The goal is:
         ↓
 Search Notion
         ↓
-Find relevant Reel
+Find relevant Reel or screenshot
         ↓
 Read the summary
         ↓
@@ -240,12 +258,10 @@ Use the useful information
 
 ## 📄 Documentation
 
-Additional project documentation and setup information will be maintained inside the `docs/` directory.
+Additional project documentation and setup information is maintained inside the `docs/` and `progress/` directories.
 
 ---
 
 ## ⚠️ Project Status
 
-Reel Brain is a personal automation project currently under development.
-
-The repository will be updated incrementally as each component is built and tested.
+Reel Brain's core automation is **working end-to-end** for both Reels and photos. The project is being polished incrementally (cleanup, permanent tunnel, optional Verify & Expand feature) rather than treated as fully "done."
