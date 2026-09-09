@@ -97,6 +97,8 @@ Public access to local n8n is provided via a Cloudflare Tunnel, started automati
 | **Notion**            | Searchable storage and knowledge base                     |
 | **Cloudflare Tunnel** | Exposes local n8n to Telegram's webhook over HTTPS         |
 | **yt-dlp**            | Downloads actual Reel video content for analysis           |
+| **FFmpeg**             | Compresses downloaded video (480p) before it's sent to Gemini, to save upload time and API usage |
+| **Tavily**             | Free web search API used only by the optional Verify & Expand feature |
 | **Node.js / npm**     | Runs the local n8n setup                                  |
 
 All services run on free tiers.
@@ -125,20 +127,28 @@ This turns a collection of random saved Reels and screenshots into structured in
 ```text
 reel-brain/
 │
-├── README.md
+├── README.md            — this file: what/why/how
+├── SETUP.md              — how to actually run this on your own machine
+├── .env.example          — every config value/credential you'll need
 ├── .gitignore
 │
 ├── docs/
-│   └── Project documentation and context
+│   └── Project context, original setup guide, Step 7 design decisions
 │
 ├── workflows/
-│   └── n8n workflow exports
+│   └── n8n workflow exports (main pipeline + Verify & Expand)
 │
 ├── notion/
-│   └── Notion database/schema notes
+│   └── Notion database schema
 │
-└── progress/
-    └── Project progress logs
+├── scripts/
+│   └── Startup automation (Cloudflare tunnel + n8n)
+│
+├── progress/
+│   └── Chronological progress logs — what broke, what was learned
+│
+└── learnings/
+    └── Deeper dives into concepts learned along the way
 ```
 
 ---
@@ -161,11 +171,12 @@ reel-brain/
 * [x] Fallback handling for failed/private reels (caption-only path)
 * [x] Photo/screenshot analysis branch (inline base64 → Gemini)
 * [x] Automated startup script (tunnel + webhook + n8n)
+* [x] FFmpeg compression step for downloaded video
+* [x] Cleanup step for downloaded video files
+* [x] Verify & Expand feature *(optional)* — Gemini query generation + Tavily search + Gemini verdict, written back to the same Notion row
 * [ ] Permanent Cloudflare Named Tunnel (pending free/cheap domain)
-* [ ] Cleanup step for downloaded video files
-* [ ] Verify & Expand feature *(optional)*
 
-> **Current phase:** Core pipeline is fully working end-to-end for both Reels and photos, including graceful fallback for undownloadable reels, with a one-click daily startup script. Remaining work is reliability polish (disk cleanup, permanent tunnel) and the optional Verify & Expand feature.
+> **Current phase:** Core pipeline is fully working end-to-end for both Reels and photos, including graceful fallback for undownloadable reels, video compression, temp-file cleanup, and a one-click daily startup script. The optional Verify & Expand feature is also built and working. Remaining work is the permanent tunnel (needs a domain) and general reliability polish.
 
 ---
 
@@ -194,18 +205,18 @@ reel-brain/
 * Save structured information to Notion
 * Handle cases where video download fails (caption-only fallback)
 
-### Phase 4 — Daily Usage 🔄 (in progress)
+### Phase 4 — Daily Usage ✅
 
 * ✅ One-click startup script (Cloudflare Tunnel + webhook + n8n)
-* [ ] Move `NODES_EXCLUDE` / `N8N_RESTRICT_FILE_ACCESS_TO` fully into permanent system env vars
-* [ ] Add cleanup step to delete downloaded `.mp4` files after successful Notion save
+* ✅ Moved `NODES_EXCLUDE` / `N8N_RESTRICT_FILE_ACCESS_TO` into permanent system env vars
+* ✅ Cleanup step deletes downloaded `.mp4` files after successful Notion save
 * [ ] Upgrade to a Cloudflare Named Tunnel once a domain is available (permanent webhook URL)
 * [ ] Create useful Notion views (Unreviewed / Reviewed / Favorites)
 * [ ] Develop a regular review habit
 
-### Phase 5 — Optional Expansion
+### Phase 5 — Optional Expansion ✅
 
-Add a **"Verify This"** feature that can analyze a saved Reel's claims and, where supported, produce a verified step-by-step solution.
+**"Verify This"** is built and working: ticking the checkbox on a saved Reel has Gemini generate search queries, runs them through Tavily's free search API, and has Gemini produce a verified, step-by-step solution — written back into the same Notion row along with a full search log. See `docs/step7-verify-architecture.md` for the design and `progress/progress_update_5.md` for the build.
 
 ---
 

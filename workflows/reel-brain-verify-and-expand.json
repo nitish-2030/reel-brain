@@ -1,0 +1,309 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "event": "pagedUpdatedInDatabase",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_NOTION_DATA_SOURCE_ID",
+          "mode": "list",
+          "cachedResultName": "Reel Brain",
+          "cachedResultUrl": "REPLACE_WITH_YOUR_NOTION_DATABASE_URL"
+        }
+      },
+      "type": "n8n-nodes-base.notionTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        2768,
+        -688
+      ],
+      "id": "dd9d372c-c8fe-4e14-a2e3-46251c7399f0",
+      "name": "Notion Trigger1",
+      "credentials": {
+        "notionApi": {
+          "id": "Sh6J5wP1wbwoNcpq",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nreturn [{\n  json: {\n    pageId: item.id,\n    title: item.Title,\n    link: item.Link,\n    summary: item.Summary,\n    problem: item.Problem,\n    claim: item.Claim || null\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2992,
+        -688
+      ],
+      "id": "aba486ec-5446-4acb-90c3-0b860379c72e",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: \"You are researching a piece of content saved from a social media video. Summary: \\\"\" + $json.summary + \"\\\". Problem/need it addresses: \\\"\" + $json.problem + \"\\\".\" + ($json.claim ? \" A specific detail from the video: \\\"\" + $json.claim + \"\\\".\" : \"\") + \" Based on this, identify what the person would need to know or do to actually accomplish or benefit from this content \\u2014 whether it's a tool, technique, tutorial, or general topic. Generate exactly 6 broad, distinct web search queries that would help find current, reliable, real-world information about how to do this, what options/tools exist for it, and whether the approach described is still valid/current. If specific names (tools, apps, brands) are mentioned, keep them exact in the queries. Respond with ONLY a raw JSON array of 6 strings, no markdown, no explanation. Example: [\\\"query one\\\", \\\"query two\\\", \\\"query three\\\", \\\"query four\\\", \\\"query five\\\", \\\"query six\\\"]\"\n    }]\n  }]\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3216,
+        -688
+      ],
+      "id": "fb13cc3e-0de3-43ef-b6c1-96a21738b855",
+      "name": "HTTP Request2",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MonF1TibU0AgUTD",
+          "name": "gogpalmapi2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\n// Gemini ka raw text nikalo\nlet rawText = item.candidates[0].content.parts[0].text;\n\n// agar markdown fences hai (```json ... ```) to hata do\nrawText = rawText.replace(/```json|```/g, \"\").trim();\n\n// JSON array me parse karo\nlet queries;\ntry {\n  queries = JSON.parse(rawText);\n} catch (e) {\n  // fallback: agar parse fail ho to line by line split kar do\n  queries = rawText.split(\"\\n\").filter(q => q.trim().length > 0);\n}\n\nreturn queries.map(q => ({ json: { query: q } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        -688
+      ],
+      "id": "72e4636b-7ba8-4771-86b6-8b325d92ce9c",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"max_results\": 5\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3664,
+        -688
+      ],
+      "id": "866e2d8d-d7a1-4bec-9511-f578ad214fe0",
+      "name": "HTTP Request3",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lcutUi3kmOSIhEHw",
+          "name": "Tavily API 1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\n\nconst combined = allItems.map(item => {\n  return {\n    query: item.json.query,\n    results: (item.json.results || []).map(r => ({\n      title: r.title,\n      url: r.url,\n      content: r.content\n    }))\n  };\n});\n\nconst original = $(\"Code in JavaScript3\").first().json;\n\nreturn [{\n  json: {\n    pageId: original.pageId,\n    title: original.title,\n    link: original.link,\n    summary: original.summary,\n    problem: original.problem,\n    claim: original.claim,\n    searchRounds: combined\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3872,
+        -688
+      ],
+      "id": "d8b9947b-c339-4d2f-aa2b-f35021886e96",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: \"Based on the search evidence below, help the user actually accomplish what this saved content addresses. Summary: \\\"\" + $json.summary + \"\\\". Problem/need: \\\"\" + $json.problem + \"\\\".\" + ($json.claim ? \" Specific detail from the video: \\\"\" + $json.claim + \"\\\".\" : \"\") + \" Search evidence gathered: \" + JSON.stringify($json.searchRounds) + \"\\n\\nUsing ONLY this evidence (do not invent or assume beyond it), determine whether what this content describes is currently real, accurate, and practically achievable. Then give a clear, complete, step-by-step way (or a few possible ways/tools) the user could actually go do this or solve this problem right now, based on current, reliable information. If the original approach/tool is outdated, no longer available, or misleading, clearly say so and suggest the current best alternative instead. If it is accurate and current, confirm that and give the practical steps.\\n\\nRespond with ONLY raw JSON in this exact format, no markdown: {\\\"verified\\\": true or false, \\\"explanation\\\": \\\"a clear, actionable explanation \\u2014 confirm feasibility/accuracy first in a sentence, then give the concrete steps/methods/tools to actually accomplish it, based on the evidence\\\", \\\"sources\\\": [\\\"url1\\\", \\\"url2\\\"]}\"\n    }]\n  }]\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        4096,
+        -688
+      ],
+      "id": "e6179e8b-c559-4165-b323-7f5c0e033771",
+      "name": "HTTP Request6",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MonF1TibU0AgUTD",
+          "name": "gogpalmapi2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nlet rawText = item.candidates[0].content.parts[0].text;\nrawText = rawText.replace(/```json|```/g, \"\").trim();\n\nlet verdict;\n\ntry {\n  verdict = JSON.parse(rawText);\n} catch (e) {\n  verdict = {\n    verified: false,\n    explanation: \"Could not parse final response.\",\n    sources: []\n  };\n}\n\n// Data from Code in JavaScript5 (carries pageId + all searchRounds)\nconst original = $(\"Code in JavaScript5\").first().json;\n\nconst pageId = original.pageId;\nconst searchRounds = original.searchRounds || [];\n\n// Create readable search log\nconst queryList = searchRounds\n  .map((r, i) => `${i + 1}. ${r.query}`)\n  .join(\"\\n\");\n\nconst searchLogText =\n  `Total searches: ${searchRounds.length}\\n\\n${queryList}`;\n\n// Create final solution text\nconst solutionText =\n  `${verdict.explanation}\\n\\nSources:\\n${(verdict.sources || []).join(\"\\n\")}`;\n\nreturn [{\n  json: {\n    pageId,\n    verified: Boolean(verdict.verified),\n    verifiedSolution: solutionText,\n    searchLog: searchLogText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4320,
+        -688
+      ],
+      "id": "87ff46d8-416b-4b3b-a556-d5ae1891adde",
+      "name": "Code in JavaScript7"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.pageId }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Verified Solution|rich_text",
+              "textContent": "={{ $json.verifiedSolution }}"
+            },
+            {
+              "key": "Search Log|rich_text",
+              "textContent": "={{ $json.searchLog }}"
+            },
+            {
+              "key": "Verify This|checkbox"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        4544,
+        -688
+      ],
+      "id": "4ff50ac7-28eb-42b8-929b-9eb64798723b",
+      "name": "Update a database page1",
+      "credentials": {
+        "notionApi": {
+          "id": "Sh6J5wP1wbwoNcpq",
+          "name": "Notion account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Notion Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request6": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "Update a database page1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6ce2b755e9a70e3eb0267fc7f14063162ae533b2521128fe937f95e8679b9503"
+  }
+}

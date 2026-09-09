@@ -1,0 +1,713 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "channel_post"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        96,
+        -128
+      ],
+      "id": "e511fc44-3ace-4c86-b91b-35dd4912dc80",
+      "name": "Telegram Trigger",
+      "webhookId": "4204fe0c-9993-4db4-85ab-e2b29583a206",
+      "credentials": {
+        "telegramApi": {
+          "id": "JERjZn467hmsrPuP",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8a89d9cf-dc2d-409a-892e-648068758fb4",
+              "leftValue": "={{ Array.isArray($json.channel_post.photo) && $json.channel_post.photo.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        352,
+        -128
+      ],
+      "id": "196aa88c-730c-4000-b616-d036833db858",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const photos = $json.channel_post.photo;\nconst fileId = photos[photos.length - 1].file_id; // last = highest resolution\nconst caption = $json.channel_post.caption || \"\";\nreturn [{ json: { fileId, caption } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -448
+      ],
+      "id": "df901f4c-9451-445c-aa47-8d91332e2eab",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        -448
+      ],
+      "id": "beaade36-9ab4-44d8-b68c-16604812fe1c",
+      "name": "Get a file1",
+      "webhookId": "f6016c4e-29c4-4aeb-aff3-87087f5f206c",
+      "credentials": {
+        "telegramApi": {
+          "id": "JERjZn467hmsrPuP",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        1168,
+        -448
+      ],
+      "id": "e02fbc71-83b2-4cdd-8cfc-8104f03d8ef3",
+      "name": "Extract from File1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [\n      { \"text\": \"Look at this image carefully. Respond ONLY in valid JSON, no markdown formatting, in this exact shape:\\n{\\n  \\\"summary\\\": \\\"a clear, detailed description of what is actually visible in the image \\u2014 the scene, objects, people, layout, on-screen text, UI elements, or whatever is shown\\\",\\n  \\\"tags\\\": [\\\"3-5 relevant tags\\\"],\\n  \\\"problem\\\": \\\"what need or problem this image addresses, if any\\\",\\n  \\\"claim\\\": \\\"if the image contains a specific factual statement, statistic, named tool/website/brand, instruction, or claim that could be checked/verified, quote or name it here EXACTLY as shown, including exact names \\u2014 do not generalize or summarize it into a category. If there is no such checkable claim in the image, set this to null.\\\"\\n}\\n\\nRules:\\n- summary must describe the actual visual content, not just repeat the caption.\\n- claim must preserve exact proper nouns, numbers, names, or text exactly as they appear in the image \\u2014 never replace them with generic descriptions.\\n- If multiple claims are present, pick the single most important/central one.\\n\\nCaption if provided by user: {{ $('Code in JavaScript6').item.json.caption }}\" },\n      { \"inline_data\": { \"mime_type\": \"image/jpeg\", \"data\": \"{{ $json.data }}\" } }\n    ]\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1408,
+        -448
+      ],
+      "id": "4339546f-f416-4071-86e7-5df71e429e8c",
+      "name": "HTTP Request3",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dcl23S29hg3PET17",
+          "name": "gogapi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let text = $json.candidates[0].content.parts[0].text;\ntext = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\nconst parsed = JSON.parse(text);\n\n// normalize: if claim is missing/empty, keep it explicitly null\nif (!parsed.claim || parsed.claim.trim() === '') {\n  parsed.claim = null;\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        -448
+      ],
+      "id": "55cfc714-0d8e-4c1e-a776-f1eb0ddb07ca",
+      "name": "Code in JavaScript7"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_NOTION_DATA_SOURCE_ID",
+          "mode": "list",
+          "cachedResultName": "Reel Brain",
+          "cachedResultUrl": "REPLACE_WITH_YOUR_NOTION_DATABASE_URL"
+        },
+        "title": "={{ $('Code in JavaScript6').item.json.caption || \"Screenshot - \" + $now }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Summary|rich_text",
+              "textContent": "={{ $json.summary }}"
+            },
+            {
+              "key": "Tags|multi_select",
+              "multiSelectValue": "={{ $json.tags }}"
+            },
+            {
+              "key": "Date Saved|date",
+              "includeTime": false,
+              "date": "={{ $now }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Image"
+            },
+            {
+              "key": "Problem|rich_text",
+              "textContent": "={{ $json.problem }}"
+            },
+            {
+              "key": "Claim|rich_text",
+              "textContent": "={{ $json.claim || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        1904,
+        -448
+      ],
+      "id": "d852136a-9fb0-4b1d-af9c-ce252ddf0b27",
+      "name": "Create a database page3",
+      "credentials": {
+        "notionApi": {
+          "id": "Sh6J5wP1wbwoNcpq",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "==yt-dlp --merge-output-format mp4 --print after_move:filepath -o \"D:\\reel_temp\\%(id)s.%(ext)s\" \"{{ $json.channel_post.text }}\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        448,
+        240
+      ],
+      "id": "dd7aa8fc-5436-4d6f-8623-1e6f6cb799e3",
+      "name": "Execute Command2",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const stdout = $input.item.json.stdout.trim();\nconst lines = stdout.split('\\n').filter(l => l.trim().length > 0);\nconst filePath = lines[lines.length - 1].trim();\n\nreturn {\n  json: {\n    filePath\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -224
+      ],
+      "id": "2fd4ccaa-298c-4ad8-9d7c-b8acb8340f9e",
+      "name": "Code in JavaScript8"
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json.filePath }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1328,
+        -256
+      ],
+      "id": "a57d482b-ae6f-4d84-a571-337e2b8b4ca3",
+      "name": "Read/Write Files from Disk1"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "inputType": "binary"
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        -16
+      ],
+      "id": "ed03287f-3b05-4ccd-a8cb-39b28c848cd9",
+      "name": "Upload a media file1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "UOegjCbl0BXnvRyT",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Watch and listen to this video carefully, all the way through. Respond ONLY in valid JSON, no markdown, in this exact shape:\\n{\\n  \\\"summary\\\": \\\"a detailed, specific description of exactly what this video shows and says. If it names specific tools, apps, websites, products, brands, techniques, or steps, list each one by its EXACT name as stated in the video, along with a short note on what that specific item is used for or does. Do not generalize named items into a category (e.g. do not write just tools for X, name the actual tools). If the video does not name anything specific, describe the general content and method shown instead.\\\",\\n  \\\"tags\\\": [\\\"3-5 relevant tags\\\"],\\n  \\\"problem\\\": \\\"what problem or need this video addresses\\\",\\n  \\\"claim\\\": \\\"if the video makes a specific factual statement, statistic, instruction, or names a tool/website/brand/technique that could be checked or verified, state it here EXACTLY as said in the video, preserving exact names and numbers. If multiple such claims exist, pick the single most important or central one. If there is no checkable claim, set this to null.\\\"\\n}\"\n        },\n        {\n          \"fileData\": {\n            \"mimeType\": \"video/mp4\",\n            \"fileUri\": \"{{ $('Upload a media file1').item.json.fileUri }}\"\n          }\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1472,
+        0
+      ],
+      "id": "750d8f8d-df60-43a3-be3b-eb8b19591ec1",
+      "name": "HTTP Request4",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MonF1TibU0AgUTD",
+          "name": "gogpalmapi2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseText = $input.item.json.candidates[0].content.parts[0].text;\n// Clean up any markdown code fences if present\nconst cleaned = responseText.replace(/```json|```/g, '').trim();\nconst parsed = JSON.parse(cleaned);\n\nif (!parsed.claim || String(parsed.claim).trim() === '') {\n  parsed.claim = null;\n}\n\nreturn {\n  json: {\n    summary: parsed.summary,\n    tags: parsed.tags,\n    problem: parsed.problem,\n    claim: parsed.claim\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        16
+      ],
+      "id": "33829c36-f375-42c8-a13d-5c8004ef6cff",
+      "name": "Code in JavaScript9"
+    },
+    {
+      "parameters": {
+        "jsCode": "const caption = $json.channel_post.text || '';\n\nconst promptText = `This is an Instagram post caption or URL (the actual video content was not accessible, so work only from this caption): \"${caption}\"\n\nBased ONLY on this caption, respond ONLY in valid JSON, no markdown, in this exact shape:\n{\n  \"summary\": \"a specific summary based on what the caption says. If the caption names specific tools, apps, websites, products, or brands, list each one by its exact name as written, with a short note on what it is used for. Do not generalize named items into a category. Clearly mention that this summary is caption-only because the video was unavailable.\",\n  \"tags\": [\"tag1\", \"tag2\", \"tag3\"],\n  \"problem\": \"what problem or need this content likely addresses\",\n  \"claim\": \"if the caption states a specific factual claim, statistic, instruction, or names a tool/website/brand that could be checked or verified, state it here EXACTLY as written in the caption, preserving exact names and numbers. If there is no checkable claim, set this to null.\"\n}\n\nIf there isn't enough information in the caption, make a reasonable best guess and say so in the summary.`;\n\nconst body = {\n  contents: [\n    {\n      parts: [\n        { text: promptText }\n      ]\n    }\n  ]\n};\n\nreturn {\n  json: {\n    geminiBody: body\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        368
+      ],
+      "id": "e98b21cb-d112-4d28-899f-59e7e66bd8b5",
+      "name": "Code in JavaScript10"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiBody) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1408,
+        352
+      ],
+      "id": "82c7ebc4-28e1-4972-a4f9-2e9562179dfa",
+      "name": "HTTP Request5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "A6NQd1maQUyqKrBu",
+          "name": "gogapi2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseText = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = responseText.replace(/```json|```/g, '').trim();\nconst parsed = JSON.parse(cleaned);\n\nif (!parsed.claim || String(parsed.claim).trim() === '') {\n  parsed.claim = null;\n}\n\nreturn {\n  json: {\n    summary: parsed.summary,\n    tags: parsed.tags,\n    problem: parsed.problem,\n    claim: parsed.claim\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        352
+      ],
+      "id": "cecef774-8534-4d65-9656-2aa5de552629",
+      "name": "Code in JavaScript11"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_NOTION_DATA_SOURCE_ID",
+          "mode": "list",
+          "cachedResultName": "Reel Brain",
+          "cachedResultUrl": "REPLACE_WITH_YOUR_NOTION_DATABASE_URL"
+        },
+        "title": "={{ $('Telegram Trigger').item.json.channel_post.text }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Summary|rich_text",
+              "textContent": "={{ $json.summary }}"
+            },
+            {
+              "key": "Tags|multi_select",
+              "multiSelectValue": "={{ $json.tags }}"
+            },
+            {
+              "key": "Link|url",
+              "urlValue": "={{ $('Telegram Trigger').item.json.channel_post.text }}"
+            },
+            {
+              "key": "Date Saved|date",
+              "includeTime": false,
+              "date": "={{ $now }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "Reel"
+            },
+            {
+              "key": "Problem|rich_text",
+              "textContent": "={{ $json.problem }}"
+            },
+            {
+              "key": "Claim|rich_text",
+              "textContent": "={{ $json.claim || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        1888,
+        192
+      ],
+      "id": "add19da8-8998-484a-8148-9d325245784c",
+      "name": "Create a database page1",
+      "credentials": {
+        "notionApi": {
+          "id": "Sh6J5wP1wbwoNcpq",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=del \"{{ $('Code in JavaScript8').item.json.filePath }}\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        192
+      ],
+      "id": "e6a7bc89-28bf-499d-841a-3225e1b71c2c",
+      "name": "Execute Command3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Code in JavaScript8').item.json.filePath;\nconst compressed = original.replace(/\\.mp4$/i, '_c.mp4');\n\nreturn {\n  json: {\n    filePath: compressed,\n    originalFilePath: original\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -256
+      ],
+      "id": "3142a17d-8a19-4887-a5d0-883162d974ae",
+      "name": "Code in JavaScript15"
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -y -i \"{{ $('Code in JavaScript8').item.json.filePath }}\" -vf \"scale=-2:480\" -b:v 800k -c:a aac -b:a 64k \"{{ $('Code in JavaScript8').item.json.filePath.replace('.mp4', '_c.mp4') }}\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        816,
+        -240
+      ],
+      "id": "e0473a64-856f-47d1-a8b6-1b6abd449ead",
+      "name": "Execute Command6",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ts = Date.now();\nconst filePath = `D:\\\\reel_temp\\\\reel_${ts}.mp4`;\n\nreturn {\n  json: {\n    ...$json,\n    filePath\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        144
+      ],
+      "id": "ad1ce7a7-54d7-425e-815a-3b9d1ba284b8",
+      "name": "Code — Get Path"
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code — Get Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Get a file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file1": {
+      "main": [
+        [
+          {
+            "node": "Extract from File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "Create a database page3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript8",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript8": {
+      "main": [
+        [
+          {
+            "node": "Execute Command6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk1": {
+      "main": [
+        [
+          {
+            "node": "Upload a media file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload a media file1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request4": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript9": {
+      "main": [
+        [
+          {
+            "node": "Create a database page1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript10": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request5": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript11",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript11": {
+      "main": [
+        [
+          {
+            "node": "Create a database page1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a database page1": {
+      "main": [
+        [
+          {
+            "node": "Execute Command3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript15": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command6": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript15",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Get Path": {
+      "main": [
+        [
+          {
+            "node": "Execute Command2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6ce2b755e9a70e3eb0267fc7f14063162ae533b2521128fe937f95e8679b9503"
+  }
+}
